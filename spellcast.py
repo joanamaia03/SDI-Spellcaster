@@ -5,8 +5,11 @@ import math
 import tkinter as tk
 import threading
 import cv2
-import mediapipe as mp
 import time
+import mediapipe as mp
+
+mp_hands = mp.solutions.hands
+hands = mp_hands.Hands()
 
 # Initialize libraries
 pygame.init()
@@ -81,8 +84,73 @@ visual_effects = {
     "ice": draw_ice,
 }
 
+def hand_tracking(spell_queue):
+    cap = cv2.VideoCapture(0)
+    previous_spell = None
+
+    while True:
+        ret, frame = cap.read()
+        if not ret:
+            continue
+
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = hands.process(frame)
+
+        if results.multi_hand_landmarks:
+            for hand_landmarks in results.multi_hand_landmarks:
+                detected_spell = detect_hand_motion(hand_landmarks)
+                if detected_spell and detected_spell != previous_spell:
+                    spell_queue.append(detected_spell)
+                    previous_spell = detected_spell
+                    print(f"Detected spell: {detected_spell}")
+
+        time.sleep(0.1)  # Add a small delay to avoid overwhelming the CPU
+
+def detect_hand_motion(hand_landmarks):
+    # Get the coordinates of the landmarks
+    thumb_tip = hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP]
+    index_tip = hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP]
+    middle_tip = hand_landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_TIP]
+    ring_tip = hand_landmarks.landmark[mp_hands.HandLandmark.RING_FINGER_TIP]
+    pinky_tip = hand_landmarks.landmark[mp_hands.HandLandmark.PINKY_TIP]
+
+    thumb_mcp = hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_MCP]
+    index_mcp = hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_MCP]
+    middle_mcp = hand_landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_MCP]
+    ring_mcp = hand_landmarks.landmark[mp_hands.HandLandmark.RING_FINGER_MCP]
+    pinky_mcp = hand_landmarks.landmark[mp_hands.HandLandmark.PINKY_MCP]
+
+    # Calculate distances to determine if fingers are extended
+    def is_finger_extended(tip, mcp):
+        return tip.y < mcp.y
+
+    thumb_extended = is_finger_extended(thumb_tip, thumb_mcp)
+    index_extended = is_finger_extended(index_tip, index_mcp)
+    middle_extended = is_finger_extended(middle_tip, middle_mcp)
+    ring_extended = is_finger_extended(ring_tip, ring_mcp)
+    pinky_extended = is_finger_extended(pinky_tip, pinky_mcp)
+
+    # Open hand (all fingers extended)
+    if thumb_extended and index_extended and middle_extended and ring_extended and pinky_extended:
+        return "ice"
+
+    # Pointing finger (only index finger extended)
+    if not thumb_extended and index_extended and not middle_extended and not ring_extended and not pinky_extended:
+        return "thunder"
+
+    # Closed hand (no fingers extended)
+    if not thumb_extended and not index_extended and not middle_extended and not ring_extended and not pinky_extended:
+        return "rock"
+
+    # Peace sign (index and middle fingers extended)
+    if not thumb_extended and index_extended and middle_extended and not ring_extended and not pinky_extended:
+        return "heal"
+
+    return None
+
 # Initialize speech recognizer
 recognizer = sr.Recognizer()
+
 
 def listen_for_spell(mic_index, spell_queue):
     with sr.Microphone(device_index=mic_index) as source:
@@ -120,63 +188,6 @@ def animate_effect(screen, effect_func, duration=1000, fps=30):
         pygame.display.flip()
         clock.tick(fps)
         frame += 1
-
-def hand_tracking(spell_queue):
-    mp_hands = mp.solutions.hands
-    hands = mp_hands.Hands()
-    cap = cv2.VideoCapture(0)
-
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = hands.process(frame_rgb)
-
-        if results.multi_hand_landmarks:
-            for hand_landmarks in results.multi_hand_landmarks:
-                # Gesture recognition
-                thumb_tip = hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP]
-                index_finger_tip = hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP]
-                middle_finger_tip = hand_landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_TIP]
-                ring_finger_tip = hand_landmarks.landmark[mp_hands.HandLandmark.RING_FINGER_TIP]
-                pinky_tip = hand_landmarks.landmark[mp_hands.HandLandmark.PINKY_TIP]
-
-                # Closed hand for rock spell
-                if (thumb_tip.y > index_finger_tip.y and
-                    thumb_tip.y > middle_finger_tip.y and
-                    thumb_tip.y > ring_finger_tip.y and
-                    thumb_tip.y > pinky_tip.y):
-                    spell_queue.append("rock")
-
-                # Pointing index finger for thunder spell
-                elif (index_finger_tip.y < middle_finger_tip.y and
-                      index_finger_tip.y < ring_finger_tip.y and
-                      index_finger_tip.y < pinky_tip.y and
-                      thumb_tip.y > index_finger_tip.y):
-                    spell_queue.append("thunder")
-
-                # Open hand for ice spell
-                elif (thumb_tip.y < index_finger_tip.y and
-                      thumb_tip.y < middle_finger_tip.y and
-                      thumb_tip.y < ring_finger_tip.y and
-                      thumb_tip.y < pinky_tip.y):
-                    spell_queue.append("ice")
-
-                # Peace sign for heal spell
-                elif (index_finger_tip.y < middle_finger_tip.y and
-                      middle_finger_tip.y < ring_finger_tip.y and
-                      ring_finger_tip.y < pinky_tip.y and
-                      thumb_tip.y < index_finger_tip.y):
-                    spell_queue.append("heal")
-
-        cv2.imshow('Hand Tracking', frame)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
-
-    cap.release()
-    cv2.destroyAllWindows()
 
 def run_spellcast_audio():
     pygame.init()  # Reinitialize Pygame
@@ -246,9 +257,10 @@ def run_spellcast_video():
         if spell_queue:
             spell = spell_queue.pop(0)
             if spell in visual_effects:
+                print(f"Playing spell: {spell}")  # Debugging print statement
                 pygame.mixer.Sound(spell_sounds[spell]).play()
                 animate_effect(screen, visual_effects[spell])
-                time.sleep(1)  # Wait for the effect to finish
+                time.sleep(0.5)  # Add a delay between spells
 
         # Draw "Press ESC to exit" text with background rectangle
         font = pygame.font.Font(None, 36)
