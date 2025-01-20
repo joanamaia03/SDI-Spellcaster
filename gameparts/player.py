@@ -24,7 +24,7 @@ class Player:
                 return spell.damage
         else:
             print(f"{self.name} does not have enough mana to cast {spell.name}.")
-            return 0
+            return "fail"
 
     def take_damage(self, damage):
         self.health -= damage
