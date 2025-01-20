@@ -23,7 +23,7 @@ class Game:
             Spell("Ice", 10, 5),
             Spell("Magic Missile", 30, 20),
             Spell("Heal", -20, 10),
-            Spell("Mana Charge", 0, -10),
+            Spell("Charge", 0, -5),
             Spell("Kill", 99, 50)
         ]
         self.spell_sounds = {
@@ -33,7 +33,7 @@ class Game:
             "Ice": pygame.mixer.Sound("sounds/ice.wav"),
             "Magic Missile": pygame.mixer.Sound("sounds/missile.wav"),
             "Heal": pygame.mixer.Sound("sounds/heal.wav"),
-            "Mana Charge": pygame.mixer.Sound("sounds/charge.wav"),
+            "Charge": pygame.mixer.Sound("sounds/charge.wav"),
             "Kill": pygame.mixer.Sound("sounds/Kill.wav"),
             "Fail": pygame.mixer.Sound("sounds/fail.wav")
         }
@@ -49,7 +49,7 @@ class Game:
             "Ice": [pygame.transform.scale(pygame.image.load(f"visuals/iceanim/tile{i}.png").convert_alpha(),(400,400)) for i in range(0, 34)],
             "Magic Missile": [pygame.transform.scale(pygame.image.load(f"visuals/missleanim/tile{i}.png").convert_alpha(),(200,200)) for i in range(0, 15)],
             "Heal": [pygame.transform.scale(pygame.image.load(f"visuals/healanim/tile{i}.png").convert_alpha(),(200,200)) for i in range(0, 15)],
-            "Mana Charge": [pygame.transform.scale(pygame.image.load(f"visuals/chargeanim/tile{i}.png").convert_alpha(),(200,200)) for i in range(0, 12)],
+            "Charge": [pygame.transform.scale(pygame.image.load(f"visuals/chargeanim/tile{i}.png").convert_alpha(),(200,200)) for i in range(0, 12)],
             "Kill": [pygame.transform.scale(pygame.image.load(f"visuals/killanim/tile{i}.png").convert_alpha(),(500,500)) for i in range(0, 21)],
             "Fail": [pygame.transform.scale(pygame.image.load(f"visuals/failanim/tile{i}.png").convert_alpha(), (200, 200)) for i in range(0, 10)] 
         }
@@ -64,9 +64,14 @@ class Game:
 
         self.current_player = 0
 
+        playbgm = random.randint(1, 2)
         # Load and play background music
-        pygame.mixer.music.load("sounds/bgmusic2.wav")
-        pygame.mixer.music.play(-1)  # Play the music in a loop
+        if playbgm == 1:
+            pygame.mixer.music.load("sounds/bgmusic2.wav")
+            pygame.mixer.music.play(-1)
+        else:
+            pygame.mixer.music.load("sounds/bgmusic1.wav")
+            pygame.mixer.music.play(-1)
 
         # Load pre-fight sound effects
         self.ready_sound = pygame.mixer.Sound("sounds/ready.wav")
@@ -249,7 +254,7 @@ class Game:
                     self.spell_sounds["Fail"].play()  # Play the fail sound
                     self.play_spell_animation("Fail", self.player_positions[current_player.name])  # Play the fail animation
                 else:
-                    if spell.name not in ["Heal", "Mana Charge"]:
+                    if spell.name not in ["Heal", "Charge"]:
                         opponent.take_damage(damage)
                         target_position = self.player_positions[opponent.name]  # Position on the opponent's side
                     else:

@@ -12,6 +12,8 @@ class Menu:
         self.font = pygame.font.Font(None, 72)
         self.small_font = pygame.font.Font(None, 36)
         self.background = pygame.image.load("visuals/background.jpg").convert()
+        self.main_menu_background = pygame.image.load("visuals/mainmenu.png").convert()
+        self.main_menu_background = pygame.transform.scale(self.main_menu_background, (800, 600))  # Resize to fit the screen
         self.selected_characters = [None, None]
         self.wizzL_images = [pygame.transform.scale(pygame.image.load(os.path.join("visuals/wizzL", img)).convert_alpha(), (150, 150)) for img in os.listdir("visuals/wizzL")]
         self.wizzR_images = [pygame.transform.scale(pygame.image.load(os.path.join("visuals/wizzR", img)).convert_alpha(), (150, 150)) for img in os.listdir("visuals/wizzR")]
@@ -32,13 +34,10 @@ class Menu:
 
     def main_menu(self):
         while True:
-            self.screen.blit(self.background, (0, 0))
+            self.screen.blit(self.main_menu_background, (0, 0))
             dark_overlay = pygame.Surface((800, 600))
             dark_overlay.set_alpha(128)  # Adjust the alpha value to control the darkness
             dark_overlay.fill((0, 0, 0))
-            self.screen.blit(dark_overlay, (0, 0))
-
-            self.draw_text('SpellCaster', self.font, (255, 255, 255), self.screen, 250, 100)
             self.screen.blit(self.start_button, (300, 300))
             self.draw_text('Press Q to Quit', self.small_font, (255, 255, 255), self.screen, 300, 450)
 
