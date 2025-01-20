@@ -1,4 +1,4 @@
-import speech_recognition as sr
+import gameparts.voiceSpell as sr
 import pygame
 import random
 import math
