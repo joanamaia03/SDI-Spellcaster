@@ -17,12 +17,12 @@ class Game:
         self.large_font = pygame.font.Font(None, 72)  # Larger font for "You Win"
         self.players = [Player("Player 1"), Player("Player 2")]
         self.spells = [
-            Spell("Fireball", 20, 10),
-            Spell("Thunder", 25, 15),
-            Spell("Rock", 15, 5),
-            Spell("Ice", 10, 5),
-            Spell("Magic Missile", 30, 20),
-            Spell("Heal", -20, 10),
+            Spell("Fireball", 20,20),
+            Spell("Thunder", 25, 25),
+            Spell("Rock", 15, 15),
+            Spell("Ice", 10, 10),
+            Spell("Magic Missile", 30, 30),
+            Spell("Heal", -20, 15),
             Spell("Charge", 0, -5),
             Spell("Kill", 99, 50)
         ]
@@ -198,7 +198,6 @@ class Game:
                         return
                     elif event.key == pygame.K_q:  # Press 'Q' to go back to character select
                         menu = Menu()
-                        pygame.mixer.music.stop()  # Stop the background music
                         selected_characters = menu.character_select()
                         self.__init__(selected_characters)  # Reinitialize the game with selected characters
                         self.play()
@@ -265,6 +264,8 @@ class Game:
                     self.play_spell_animation(spell.name, target_position)  # Play the spell animation
             else:
                 print(f"{current_player.name} failed to cast a spell.")
+                self.spell_sounds["Fail"].play()  # Play the fail sound
+                self.play_spell_animation("Fail", self.player_positions[current_player.name])  # Play the fail animation
 
             self.next_turn()
 
