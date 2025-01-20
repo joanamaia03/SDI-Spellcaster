@@ -4,15 +4,17 @@ from player import Player
 from spell import Spell
 from voiceSpell import recognize_speech
 from reflex_test import perform_reflex_test
+from menu import Menu
 
 class Game:
-    def __init__(self):
+    def __init__(self, selected_characters):
         pygame.init()
         pygame.mixer.init()
         self.screen = pygame.display.set_mode((800, 600))
         pygame.display.set_caption("Spellcaster Game")
         self.clock = pygame.time.Clock()
         self.font = pygame.font.Font(None, 36)
+        self.large_font = pygame.font.Font(None, 72)  # Larger font for "You Win"
         self.players = [Player("Player 1"), Player("Player 2")]
         self.spells = [
             Spell("Fireball", 20, 10),
@@ -41,7 +43,7 @@ class Game:
         self.mana_bar_image = pygame.image.load("visuals/mana_bar.png").convert_alpha()
         self.mana_bar_image = pygame.transform.scale(self.mana_bar_image, (180, 45))  # Scale the mana bar image
         self.spell_animations = {
-            "Fireball": [pygame.transform.scale(pygame.image.load(f"visuals/fireballanim/tile{i}.png").convert_alpha(), (250, 250)) for i in range(0, 17)],
+            "Fireball": [pygame.transform.scale(pygame.image.load(f"visuals/fireballanim/tile{i}.png").convert_alpha(), (300, 300)) for i in range(0, 17)],
             "Thunder": [pygame.transform.scale(pygame.image.load(f"visuals/thunderanim/tile{i}.png").convert_alpha(),(200,200)) for i in range(0, 12)],
             "Rock": [pygame.transform.scale(pygame.image.load(f"visuals/rockanim/tile{i}.png").convert_alpha(),(200,200)) for i in range(0, 11)],
             "Ice": [pygame.transform.scale(pygame.image.load(f"visuals/iceanim/tile{i}.png").convert_alpha(),(400,400)) for i in range(0, 34)],
@@ -52,8 +54,8 @@ class Game:
             "Fail": [pygame.transform.scale(pygame.image.load(f"visuals/failanim/tile{i}.png").convert_alpha(), (200, 200)) for i in range(0, 10)] 
         }
         self.player_images = {
-            "Player 1": pygame.transform.scale(pygame.image.load("visuals/player1.png").convert_alpha(), (200, 200)),
-            "Player 2": pygame.transform.scale(pygame.image.load("visuals/player2.png").convert_alpha(), (200, 200))
+            "Player 1": pygame.transform.scale(selected_characters[0], (200, 200)),
+            "Player 2": pygame.transform.scale(selected_characters[1], (200, 200)) 
         }
         self.player_positions = {
             "Player 1": (55, 300),  # Example position for Player 1
@@ -73,6 +75,9 @@ class Game:
         # Load pre-fight images
         self.ready_image = pygame.image.load("visuals/wizzardsready.png").convert_alpha()
         self.fight_image = pygame.image.load("visuals/fight.png").convert_alpha()
+
+        # Load game over music
+        self.game_over_music = "sounds/victory.wav"
 
     def next_turn(self):
         self.current_player = (self.current_player + 1) % 2
@@ -169,6 +174,50 @@ class Game:
         self.draw_turn_info()
         pygame.display.flip()
 
+    def game_over(self, winner):
+        pygame.mixer.music.stop()  # Stop the background music
+        pygame.mixer.music.load(self.game_over_music)
+        pygame.mixer.music.play(-1)  # Play the game over music in a loop
+
+        while True:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    return
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_r:  # Press 'R' to restart
+                        menu = Menu()
+                        selected_characters = menu.main_menu()
+                        self.__init__(selected_characters)  # Reinitialize the game with selected characters
+                        self.play()
+                        return
+                    elif event.key == pygame.K_q:  # Press 'Q' to go back to character select
+                        menu = Menu()
+                        pygame.mixer.music.stop()  # Stop the background music
+                        selected_characters = menu.character_select()
+                        self.__init__(selected_characters)  # Reinitialize the game with selected characters
+                        self.play()
+                        return
+
+            self.screen.blit(self.background, (0, 0))
+            dark_overlay = pygame.Surface((800, 600))
+            dark_overlay.set_alpha(128)
+            dark_overlay.fill((0, 0, 0))
+            self.screen.blit(dark_overlay, (0, 0))
+
+            text = self.large_font.render("You Win!", True, (255, 255, 255))
+            self.screen.blit(text, (300, 150))  # Adjusted position for "You Win"
+
+            winner_image = self.player_images[winner.name]
+            winner_rect = winner_image.get_rect(center=(400, 300))
+            self.screen.blit(winner_image, winner_rect.topleft)
+
+            text = self.font.render("Press 'R' to Restart or 'Q' to Character Select", True, (255, 255, 255))
+            self.screen.blit(text, (150, 500))
+
+            pygame.display.flip()
+            self.clock.tick(30)
+
     def play(self):
         running = True
         self.draw_initial_ui()  # Draw the initial UI when the game starts
@@ -227,8 +276,11 @@ class Game:
             pygame.display.flip()
             self.clock.tick(30)
 
-        pygame.quit()
+        winner = self.get_current_player() if self.get_current_player().is_alive() else self.get_opponent()
+        self.game_over(winner)
 
 if __name__ == "__main__":
-    game = Game()
+    menu = Menu()
+    selected_characters = menu.main_menu()
+    game = Game(selected_characters)
     game.play()
