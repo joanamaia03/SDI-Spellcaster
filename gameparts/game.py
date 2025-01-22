@@ -1,5 +1,5 @@
-import random
 import pygame
+import random
 from player import Player
 from spell import Spell
 from voiceSpell import recognize_speech
@@ -14,17 +14,22 @@ class Game:
         pygame.display.set_caption("Spellcaster Game")
         self.clock = pygame.time.Clock()
         self.font = pygame.font.Font(None, 36)
-        self.large_font = pygame.font.Font(None, 72)  # Larger font for "You Win"
+        self.large_font = pygame.font.Font(None, 72) 
         self.players = [Player("Player 1"), Player("Player 2")]
+        for player in self.players:
+            player.health = 100
         self.spells = [
-            Spell("Fireball", 20,20),
-            Spell("Thunder", 25, 25),
-            Spell("Rock", 15, 15),
-            Spell("Ice", 10, 10),
-            Spell("Magic Missile", 30, 30),
-            Spell("Heal", -20, 15),
+            Spell("Fireball", 10, 20),
+            Spell("Thunder", 12, 25),
+            Spell("Rock", 7, 15),
+            Spell("Ice", 5, 10),
+            Spell("Magic Missile", 15, 30),
+            Spell("Heal", -10, 15),
             Spell("Charge", 0, -5),
-            Spell("Kill", 99, 50)
+            Spell("Kill", 49, 50),
+            Spell("Reflect", 0, 20),
+            Spell("Big Charge", 5, -15),
+            Spell("Gamble", 0, 5)
         ]
         self.spell_sounds = {
             "Fireball": pygame.mixer.Sound("sounds/fireball.wav"),
@@ -34,8 +39,10 @@ class Game:
             "Magic Missile": pygame.mixer.Sound("sounds/missile.wav"),
             "Heal": pygame.mixer.Sound("sounds/heal.wav"),
             "Charge": pygame.mixer.Sound("sounds/charge.wav"),
+            "Big Charge": pygame.mixer.Sound("sounds/charge.wav"),
             "Kill": pygame.mixer.Sound("sounds/Kill.wav"),
-            "Fail": pygame.mixer.Sound("sounds/fail.wav")
+            "Fail": pygame.mixer.Sound("sounds/fail.wav"),
+            "Reflect": pygame.mixer.Sound("sounds/reflect.wav")
         }
         self.background = pygame.image.load("visuals/background.jpg").convert()
         self.background = pygame.transform.scale(self.background, (800, 600))
@@ -50,8 +57,10 @@ class Game:
             "Magic Missile": [pygame.transform.scale(pygame.image.load(f"visuals/missleanim/tile{i}.png").convert_alpha(),(200,200)) for i in range(0, 15)],
             "Heal": [pygame.transform.scale(pygame.image.load(f"visuals/healanim/tile{i}.png").convert_alpha(),(200,200)) for i in range(0, 15)],
             "Charge": [pygame.transform.scale(pygame.image.load(f"visuals/chargeanim/tile{i}.png").convert_alpha(),(200,200)) for i in range(0, 12)],
+            "Big Charge": [pygame.transform.scale(pygame.image.load(f"visuals/chargeanim/tile{i}.png").convert_alpha(),(200,200)) for i in range(0, 12)],
             "Kill": [pygame.transform.scale(pygame.image.load(f"visuals/killanim/tile{i}.png").convert_alpha(),(500,500)) for i in range(0, 21)],
-            "Fail": [pygame.transform.scale(pygame.image.load(f"visuals/failanim/tile{i}.png").convert_alpha(), (200, 200)) for i in range(0, 10)] 
+            "Fail": [pygame.transform.scale(pygame.image.load(f"visuals/failanim/tile{i}.png").convert_alpha(), (200, 200)) for i in range(0, 10)],
+            "Reflect": [pygame.transform.scale(pygame.image.load(f"visuals/reflectanim/tile{i}.png").convert_alpha(), (200, 200)) for i in range(0, 7)]  # Reflect animation
         }
         self.player_images = {
             "Player 1": pygame.transform.scale(selected_characters[0], (200, 200)),
@@ -64,14 +73,7 @@ class Game:
 
         self.current_player = 0
 
-        playbgm = random.randint(1, 2)
-        # Load and play background music
-        if playbgm == 1:
-            pygame.mixer.music.load("sounds/bgmusic2.wav")
-            pygame.mixer.music.play(-1)
-        else:
-            pygame.mixer.music.load("sounds/bgmusic1.wav")
-            pygame.mixer.music.play(-1)
+        self.play_battle_music()
 
         # Load pre-fight sound effects
         self.ready_sound = pygame.mixer.Sound("sounds/ready.wav")
@@ -83,6 +85,16 @@ class Game:
 
         # Load game over music
         self.game_over_music = "sounds/victory.wav"
+        self.arrow_image = pygame.image.load("visuals/activeplayer.png")
+
+    def play_battle_music(self):
+        playbgm = random.randint(1, 2)
+        # Load and play background music
+        if playbgm == 1:
+            pygame.mixer.music.load("sounds/bgmusic2.wav")
+        else:
+            pygame.mixer.music.load("sounds/bgmusic1.wav")
+        pygame.mixer.music.play(-1)
 
     def next_turn(self):
         self.current_player = (self.current_player + 1) % 2
@@ -131,6 +143,11 @@ class Game:
         self.draw_health_bars()
         self.draw_turn_info()
         pygame.display.flip()
+    
+    def draw_arrow_above_player(self, player):
+        player_position = self.player_positions[player.name]
+        arrow_position = (player_position[0], player_position[1] - 50)  # Adjust the position above the player
+        self.screen.blit(self.arrow_image, arrow_position)
 
     def play_spell_animation(self, spell_name, target_position):
         for frame in self.spell_animations[spell_name]:
@@ -191,10 +208,7 @@ class Game:
                     return
                 elif event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_r:  # Press 'R' to restart
-                        menu = Menu()
-                        selected_characters = menu.main_menu()
-                        self.__init__(selected_characters)  # Reinitialize the game with selected characters
-                        self.play()
+                        self.restart_match()  # Restart the match
                         return
                     elif event.key == pygame.K_q:  # Press 'Q' to go back to character select
                         menu = Menu()
@@ -222,6 +236,14 @@ class Game:
             pygame.display.flip()
             self.clock.tick(30)
 
+    def restart_match(self):
+        pygame.mixer.music.stop()  # Stop any currently playing music
+        self.players = [Player("Player 1"), Player("Player 2")]
+        self.current_player = 0
+        self.draw_initial_ui()
+        self.play_battle_music()  # Restart the battle music
+        self.play()
+
     def play(self):
         running = True
         self.draw_initial_ui()  # Draw the initial UI when the game starts
@@ -237,6 +259,10 @@ class Game:
             opponent = self.get_opponent()
             print(f"{current_player.name}'s turn.")
 
+            #self.draw_arrow_above_player(current_player)
+            #pygame.display.flip()
+            #self.clock.tick(60)
+
             spell = None
             for _ in range(3):
                 spell_name = recognize_speech()
@@ -247,21 +273,64 @@ class Game:
                 print("Spell not recognized. Try again.")
 
             if spell:
-                damage = current_player.cast_spell(spell)
+                damage = spell.cast(current_player, opponent, self.spells)
                 if damage == "fail":
                     print(f"{current_player.name} failed to cast {spell.name} due to insufficient mana.")
                     self.spell_sounds["Fail"].play()  # Play the fail sound
                     self.play_spell_animation("Fail", self.player_positions[current_player.name])  # Play the fail animation
                 else:
-                    if spell.name not in ["Heal", "Charge"]:
-                        opponent.take_damage(damage)
-                        target_position = self.player_positions[opponent.name]  # Position on the opponent's side
+                    if spell.name == "Reflect":
+                        print(f"{current_player.name} casts {spell.name} and will reflect the next spell.")
+                        self.spell_sounds["Reflect"].play()  # Play the reflect sound
+                        self.play_spell_animation("Reflect", self.player_positions[current_player.name])  # Play the reflect animation
+                        current_player.reflecting = True
+                    elif spell.name == "Gamble":
+                        joker = random.random() < 0.4
+                        if joker:
+                            randomspell = random.choice(self.spells)
+                            print(f"{current_player.name} casts Gamble and gets {randomspell.name}.")
+                            if opponent.reflecting:
+                                print(f"{opponent.name} reflects {randomspell.name} back to {current_player.name} with additional damage.")
+                                opponent.reflecting = False
+                                reflected_damage = randomspell.damage + 5
+                                current_player.take_damage(reflected_damage)
+                                target_position = self.player_positions[current_player.name]
+                                self.spell_sounds[randomspell.name].play()  # Play the spell sound
+                                self.play_spell_animation(randomspell.name, target_position)  # Play the spell animation
+                            else:
+                                if spell.name not in ["Heal", "Charge", "Big Charge"]:
+                                    opponent.take_damage(randomspell.damage)
+                                    target_position = self.player_positions[opponent.name]  # Position on the opponent's side
+                                else:
+                                    target_position = self.player_positions[current_player.name]  # Position on the current player's side
+                                target_position = (target_position[0] + 100, target_position[1] + 100)  # Adjust to center of player
+                                print(f"{current_player.name} casts {randomspell.name} on {opponent.name} for {randomspell.damage} damage.")
+                                self.spell_sounds[randomspell.name].play()  # Play the spell sound
+                                self.play_spell_animation(randomspell.name, target_position)  # Play the spell animation
+                        else:
+                            print(f"{current_player.name} casts Gamble and fails.")
+                            self.spell_sounds["Fail"].play()
+                            current_player.take_damage(20)
                     else:
-                        target_position = self.player_positions[current_player.name]  # Position on the current player's side
-                    target_position = (target_position[0] + 100, target_position[1] + 100)  # Adjust to center of player
-                    print(f"{current_player.name} casts {spell.name} on {opponent.name} for {damage} damage.")
-                    self.spell_sounds[spell.name].play()  # Play the spell sound
-                    self.play_spell_animation(spell.name, target_position)  # Play the spell animation
+                        if opponent.reflecting:
+                            print("im here")
+                            print(f"{opponent.name} reflects {spell.name} back to {current_player.name} with additional damage.")
+                            opponent.reflecting = False
+                            reflected_damage = damage + 5
+                            current_player.take_damage(reflected_damage)
+                            target_position = self.player_positions[current_player.name]
+                            self.spell_sounds[spell.name].play()  # Play the spell sound
+                            self.play_spell_animation(spell.name, target_position)  # Play the spell animation
+                        else:
+                            if spell.name not in ["Heal", "Charge", "Big Charge"]:
+                                opponent.take_damage(damage)
+                                target_position = self.player_positions[opponent.name]  # Position on the opponent's side
+                            else:
+                                target_position = self.player_positions[current_player.name]  # Position on the current player's side
+                            target_position = (target_position[0] + 100, target_position[1] + 100)  # Adjust to center of player
+                            print(f"{current_player.name} casts {spell.name} on {opponent.name} for {damage} damage.")
+                            self.spell_sounds[spell.name].play()  # Play the spell sound
+                            self.play_spell_animation(spell.name, target_position)  # Play the spell animation
             else:
                 print(f"{current_player.name} failed to cast a spell.")
                 self.spell_sounds["Fail"].play()  # Play the fail sound

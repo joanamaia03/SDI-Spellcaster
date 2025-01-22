@@ -3,7 +3,9 @@ class Player:
         self.name = name
         self.health = health
         self.mana = mana
-
+        self.reflecting = False
+        self.reflected_damage = 0
+        
     def is_alive(self):
         return self.health > 0
 

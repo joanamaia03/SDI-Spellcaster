@@ -1,6 +1,9 @@
 import pygame
 import sys
 import os
+import cv2
+import mediapipe as mp
+import time
 
 class Menu:
     def __init__(self):
@@ -25,6 +28,15 @@ class Menu:
         self.play_button = pygame.transform.scale(pygame.image.load("visuals/play_button.png").convert_alpha(), (200, 180))
         self.start_button = pygame.transform.scale(pygame.image.load("visuals/play_button.png").convert_alpha(), (200, 180))
         self.voice_line = pygame.mixer.Sound("sounds/characterselect.wav")
+        self.wand_image = pygame.transform.scale(pygame.image.load("visuals/wandcursor.png").convert_alpha(), (50, 50))  # Load and scale the wand image
+
+        # Initialize MediaPipe Hands
+        self.mp_hands = mp.solutions.hands
+        self.hands = self.mp_hands.Hands(min_detection_confidence=0.7, min_tracking_confidence=0.7)
+        self.mp_drawing = mp.solutions.drawing_utils
+
+        self.click_cooldown = 0.5  # Cooldown period in seconds
+        self.last_click_time = 0
 
     def draw_text(self, text, font, color, surface, x, y):
         textobj = font.render(text, True, color)
@@ -33,31 +45,69 @@ class Menu:
         surface.blit(textobj, textrect)
 
     def main_menu(self):
+        cap = cv2.VideoCapture(0)
         while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            frame = cv2.flip(frame, 1)
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            results = self.hands.process(frame_rgb)
+
+            hand_landmarks = None
+            if results.multi_hand_landmarks:
+                for hand_landmarks in results.multi_hand_landmarks:
+                    self.mp_drawing.draw_landmarks(frame, hand_landmarks, self.mp_hands.HAND_CONNECTIONS)
+
             self.screen.blit(self.main_menu_background, (0, 0))
             dark_overlay = pygame.Surface((800, 600))
-            dark_overlay.set_alpha(128)  # Adjust the alpha value to control the darkness
+            dark_overlay.set_alpha(128)  
             dark_overlay.fill((0, 0, 0))
             self.screen.blit(self.start_button, (300, 300))
             self.draw_text('Press Q to Quit', self.small_font, (255, 255, 255), self.screen, 300, 450)
 
+            if hand_landmarks:
+                index_finger_tip = hand_landmarks.landmark[self.mp_hands.HandLandmark.INDEX_FINGER_TIP]
+                thumb_tip = hand_landmarks.landmark[self.mp_hands.HandLandmark.THUMB_TIP]
+                x, y = int(index_finger_tip.x * 800), int(index_finger_tip.y * 600)
+
+                # Draw wand cursor
+                wand_rect = self.wand_image.get_rect(center=(x, y))
+                self.screen.blit(self.wand_image, wand_rect.topleft)
+
+                # Check if the hand is over the start button
+                if 300 <= x <= 500 and 300 <= y <= 400:
+                    cv2.rectangle(frame, (300, 300), (500, 400), (0, 255, 0), 2)
+                    if self.is_click(index_finger_tip, thumb_tip):
+                        self.character_select()
+
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
+                    cap.release()
                     pygame.quit()
                     sys.exit()
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_RETURN:
                         self.character_select()
                     if event.key == pygame.K_q:
+                        cap.release()
                         pygame.quit()
                         sys.exit()
-                if event.type == pygame.MOUSEBUTTONDOWN:
-                    mouse_pos = event.pos
-                    if 300 <= mouse_pos[0] <= 500 and 300 <= mouse_pos[1] <= 400:
-                        self.character_select()
 
             pygame.display.flip()
             self.clock.tick(30)
+
+    def is_click(self, index_finger_tip, thumb_tip):
+        current_time = time.time()
+        if current_time - self.last_click_time < self.click_cooldown:
+            return False
+
+        distance = ((index_finger_tip.x - thumb_tip.x) ** 2 + (index_finger_tip.y - thumb_tip.y) ** 2) ** 0.5
+        if distance < 0.05:  # Adjust the threshold as needed
+            self.last_click_time = current_time
+            return True
+        return False
 
     def character_select(self):
         selected = [False, False]
@@ -65,7 +115,21 @@ class Menu:
         pygame.mixer.music.play(-1)
         self.voice_line.play()
 
+        cap = cv2.VideoCapture(0)
         while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            frame = cv2.flip(frame, 1)
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            results = self.hands.process(frame_rgb)
+
+            hand_landmarks = None
+            if results.multi_hand_landmarks:
+                for hand_landmarks in results.multi_hand_landmarks:
+                    self.mp_drawing.draw_landmarks(frame, hand_landmarks, self.mp_hands.HAND_CONNECTIONS)
+
             self.screen.blit(self.background, (0, 0))
             dark_overlay = pygame.Surface((800, 600))
             dark_overlay.set_alpha(128)  # Adjust the alpha value to control the darkness
@@ -94,37 +158,49 @@ class Menu:
             self.screen.blit(self.confirm_button, (140, 350))
             self.screen.blit(self.confirm_button, (540, 350))
 
+            if hand_landmarks:
+                index_finger_tip = hand_landmarks.landmark[self.mp_hands.HandLandmark.INDEX_FINGER_TIP]
+                thumb_tip = hand_landmarks.landmark[self.mp_hands.HandLandmark.THUMB_TIP]
+                x, y = int(index_finger_tip.x * 800), int(index_finger_tip.y * 600)
+
+                # Draw wand cursor
+                wand_rect = self.wand_image.get_rect(center=(x, y))
+                self.screen.blit(self.wand_image, wand_rect.topleft)
+
+                # Check for interactions with the UI elements
+                if 70 <= x <= 120 and 235 <= y <= 285:
+                    if self.is_click(index_finger_tip, thumb_tip) and not selected[0]:
+                        self.wizzL_index = (self.wizzL_index - 1) % len(self.wizzL_images)
+                if 250 <= x <= 300 and 235 <= y <= 285:
+                    if self.is_click(index_finger_tip, thumb_tip) and not selected[0]:
+                        self.wizzL_index = (self.wizzL_index + 1) % len(self.wizzL_images)
+                if 470 <= x <= 520 and 235 <= y <= 285:
+                    if self.is_click(index_finger_tip, thumb_tip) and not selected[1]:
+                        self.wizzR_index = (self.wizzR_index - 1) % len(self.wizzR_images)
+                if 650 <= x <= 700 and 235 <= y <= 285:
+                    if self.is_click(index_finger_tip, thumb_tip) and not selected[1]:
+                        self.wizzR_index = (self.wizzR_index + 1) % len(self.wizzR_images)
+                if 140 <= x <= 240 and 350 <= y <= 400:
+                    if self.is_click(index_finger_tip, thumb_tip) and not selected[0]:
+                        self.selected_characters[0] = self.wizzL_images[self.wizzL_index]
+                        selected[0] = True
+                if 540 <= x <= 640 and 350 <= y <= 400:
+                    if self.is_click(index_finger_tip, thumb_tip) and not selected[1]:
+                        self.selected_characters[1] = self.wizzR_images[self.wizzR_index]
+                        selected[1] = True
+                if 300 <= x <= 500 and 400 <= y <= 580:
+                    if self.is_click(index_finger_tip, thumb_tip) and selected[0] and selected[1]:
+                        cap.release()
+                        self.start_game()
+
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
+                    cap.release()
                     pygame.quit()
                     sys.exit()
-                if event.type == pygame.MOUSEBUTTONDOWN:
-                    mouse_pos = event.pos
-                    if 70 <= mouse_pos[0] <= 120 and 235 <= mouse_pos[1] <= 285:
-                        if not selected[0]:
-                            self.wizzL_index = (self.wizzL_index - 1) % len(self.wizzL_images)
-                    if 250 <= mouse_pos[0] <= 300 and 235 <= mouse_pos[1] <= 285:
-                        if not selected[0]:
-                            self.wizzL_index = (self.wizzL_index + 1) % len(self.wizzL_images)
-                    if 470 <= mouse_pos[0] <= 520 and 235 <= mouse_pos[1] <= 285:
-                        if not selected[1]:
-                            self.wizzR_index = (self.wizzR_index - 1) % len(self.wizzR_images)
-                    if 650 <= mouse_pos[0] <= 700 and 235 <= mouse_pos[1] <= 285:
-                        if not selected[1]:
-                            self.wizzR_index = (self.wizzR_index + 1) % len(self.wizzR_images)
-                    if 140 <= mouse_pos[0] <= 240 and 350 <= mouse_pos[1] <= 400:
-                        if not selected[0]:
-                            self.selected_characters[0] = self.wizzL_images[self.wizzL_index]
-                            selected[0] = True
-                    if 540 <= mouse_pos[0] <= 640 and 350 <= mouse_pos[1] <= 400:
-                        if not selected[1]:
-                            self.selected_characters[1] = self.wizzR_images[self.wizzR_index]
-                            selected[1] = True
-                    if 300 <= mouse_pos[0] <= 500 and 400 <= mouse_pos[1] <= 580:
-                        if selected[0] and selected[1]:
-                            self.start_game()
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_q:
+                        cap.release()
                         pygame.quit()
                         sys.exit()
 
