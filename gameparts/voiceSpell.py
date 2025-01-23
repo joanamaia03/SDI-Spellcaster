@@ -1,7 +1,7 @@
 import speech_recognition as sr
 
 def recognize_speech():
-    mic_index = 5 # Example index, replace with the correct one
+    mic_index = 6 # Example index, replace with the correct one
     sr.Microphone.list_microphone_names()
     
     recognizer = sr.Recognizer()
